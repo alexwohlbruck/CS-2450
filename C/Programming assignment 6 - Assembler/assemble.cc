@@ -180,42 +180,22 @@ int firstPass(FILE *infile, int labels[], int lc)
 		trim(line);
 		strlwr(line);
 
-		// Get first 2 chars of line
-		char substr2[3];
-		strncpy(substr2, line, 2);
-		substr2[2] = '\0';
-
-		// Get first 3 chars of line
-		char substr3[4];
-		strncpy(substr3, line, 3);
-		substr3[3] = '\0';
-
-		// Get first 4 chars of line
-		char substr4[5];
-		strncpy(substr4, line, 4);
-		substr4[4] = '\0';
-
-		// Get first 5 chars of line
-		char substr5[6];
-		strncpy(substr5, line, 5);
-		substr5[5] = '\0';
-
 		int lineIsEmpty = strlen(line) == 0;
 		int lineIsComment = line[0] == ';';
-		int lineIsOrigin = strcmp(substr5, ".orig") == 0;
-		int lineIsEnd = strcmp(substr4, ".end") == 0;
+		int lineIsOrigin = strncmp(line, ".orig", 5) == 0;
+		int lineIsEnd = strncmp(line, ".end", 4) == 0;
 		int lineIsLabel = line[0] == 'l' && line[1] >= '0' && line[1] <= '9' && strlen(line) == 2;
 		int lineIsFill = strstr(line, ".fill") != NULL;
 
-		int lineIsAdd = strcmp(substr3, "add") == 0;
-		int lineIsAnd = strcmp(substr3, "and") == 0;
-		int lineIsNot = strcmp(substr3, "not") == 0;
-		int lineIsLd = strcmp(substr2, "ld") == 0;
-		int lineIsLdr = strcmp(substr3, "ldr") == 0;
-		int lineIsSt = strcmp(substr2, "st") == 0;
-		int lineIsSTR = strcmp(substr3, "str") == 0;
-		int lineIsBR = strcmp(substr2, "br") == 0;
-		int lineIsTrap = strcmp(substr4, "trap") == 0;
+		int lineIsAdd = strncmp(line, "add", 3) == 0;
+		int lineIsAnd = strncmp(line, "and", 3) == 0;
+		int lineIsNot = strncmp(line, "not", 3) == 0;
+		int lineIsLd = strncmp(line, "ld", 2) == 0;
+		int lineIsLdr = strncmp(line, "ldr", 3) == 0;
+		int lineIsSt = strncmp(line, "st", 2) == 0;
+		int lineIsSTR = strncmp(line, "str", 3) == 0;
+		int lineIsBR = strncmp(line, "br", 2) == 0;
+		int lineIsTrap = strncmp(line, "trap", 4) == 0;
 
 
 		// If the line is a comment, a blank line or the .orig directive, don�t do anything.
@@ -241,6 +221,7 @@ int firstPass(FILE *infile, int labels[], int lc)
 			if (lineIsAdd || lineIsAnd || lineIsNot || lineIsLd || lineIsLdr || lineIsSt || lineIsSTR || lineIsBR || lineIsTrap) {
 				lc++;
 			}
+
 			// If the line is anything else print the unknown instruction error and return -1.
 			else if (!lineIsLabel && !lineIsFill && !lineIsEnd) {
 				printf("ERROR 3: Unknown instruction.\n");
