@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define LIMIT 10000
 #define LINE_SIZE 128
@@ -25,12 +26,13 @@ int secondPass(FILE*, int[], int);
 
 // Helper functions
 void trim(char*);
-char isspace(unsigned char c);
-void strlwr(char *s);
-int strequals(char *s1, char *s2);
-void removeChunk(char *line, int num);
-char *chartobin(char num, int length);
-char *inttobin(int num, int length);
+char isspace(unsigned char);
+void strlower(char*);
+int strequals(const char*, const char*);
+void rc(char*, int);
+const char* chartobin(char, int);
+char* inttobin(int, int);
+int bintoint(char*);
 
 void assemble(char filename[]) {
 	//Open the file for reading
@@ -93,7 +95,7 @@ int findOrigin(FILE *infile) {
 		//  4. line is anything else (print error, set done = 1).	
 
 		trim(line);
-		strlwr(line);
+		strlower(line);
 
 		// Get first 5 chars of line
 		char findOrigin[6];
@@ -175,7 +177,7 @@ int firstPass(FILE *infile, int labels[], int lc) {
 		//Read a line.
 
 		trim(line);
-		strlwr(line);
+		strlower(line);
 
 		int lineIsEmpty = strlen(line) == 0;
 		int lineIsComment = line[0] == ';';
@@ -275,7 +277,7 @@ int secondPass(FILE *infile, int labels[], int lc) {
 		//Read a line.
 
 		trim(line);
-		strlwr(line);
+		strlower(line);
 
 		int lineIsEmpty = strlen(line) == 0;
 		int lineIsComment = line[0] == ';';
@@ -336,54 +338,122 @@ int secondPass(FILE *infile, int labels[], int lc) {
 }
 
 int getAdd(char line[]) {
-	// ADD R1, R2, R3
-	// 0001 DR(3) SR1(3) 0 00 SR2(3)
-	// 0001 DR(3) SR1(3) 1 imm5(5)
-	char output[] = "0001";
+	/* 
+		ADD R1, R2, R3
+		0001 DR(3) SR1(3) 0 00 SR2(3)
+		
+		ADD R0, R3, #10
+		0001 DR(3) SR1(3) 1 imm5(5)
+	 */
+	char* output = (char*) malloc(16 * sizeof(char));
+	strcat(output, "0001");
 
-	removeChunk(line, 3); // Remove "ADD"
+	rc(line, 3); // Remove "ADD"
 
 	char DR = line[1];
-	strcpy(output, chartobin(DR)); // Append DR to output
+	strcat(output, chartobin(DR, 3)); // Append DR to output
 	
-	removeChunk(line, 1); // Remove ","
+	rc(line, 2); // Remove DR
+	rc(line, 1); // Remove ","
 
-	int SR1 = line[1];
-	strcpy(output, chartobin(SR1)); // Append SR1 to output
+	char SR1 = line[1];
+	strcat(output, chartobin(SR1, 3)); // Append SR1 to output
 
-	removeChunk(line, 2); // Remove "R{x}"
-	removeChunk(line, 1); // Remove ","
+	rc(line, 2); // Remove SR1
+	rc(line, 1); // Remove ","
+	
 
-	if (line[0] == 'R') {
+	if (line[0] == 'r') {
 		// Normal mode 
 
 		int SR2 = line[1];
-		strcpy(output, "000"); // Append placeholder to output
-		strcpy(output, chartobin(SR2) + 1); // Append SR2 to output
+		strcat(output, "000"); // Append placeholder to output
+		strcat(output, chartobin(SR2, 3)); // Append SR2 to output
 	}
 	else if (line[0] == '#') {
 		// Immediate mode
 
-		line += 1; // Remove "#"
+		rc(line, 1); // Remove "#"
 		
 		int num = 0;
 		sscanf(line, "%d", &num); // Scan number into int
-		
-		strcpy(output, "1");
-		strcpy(output, inttobin(num)); // Append immediate val to output
+
+		strcat(output, "1");
+		strcat(output, inttobin(num, 5)); // Append immediate val to output
 	}
+
+	return bintoint(output);
 }
 
 int getAnd(char line[]) {
+	/*
+		AND R1, R1, R2
+		0101 DR(3) SR1(3) 0 00 SR2(3)
 
+		AND R0, R3, #-10
+		0101 DR(3) SR1(3) 1 imm5(5)
+	*/
+	char* output = (char*) malloc(16 * sizeof(char));
+	strcat(output, "0101");
+
+	rc(line, 3); // Remove "ADD"
+
+	char DR = line[1];
+	strcat(output, chartobin(DR, 3)); // Append DR to output
+	
+	rc(line, 2); // Remove DR
+	rc(line, 1); // Remove ","
+
+	char SR1 = line[1];
+	strcat(output, chartobin(SR1, 3)); // Append SR1 to output
+
+	rc(line, 2); // Remove SR1
+	rc(line, 1); // Remove ","
+	
+
+	if (line[0] == 'r') {
+		// Normal mode 
+
+		int SR2 = line[1];
+		strcat(output, "000"); // Append placeholder to output
+		strcat(output, chartobin(SR2, 3)); // Append SR2 to output
+	}
+	else if (line[0] == '#') {
+		// Immediate mode
+
+		rc(line, 1); // Remove "#"
+		
+		int num = 0;
+		sscanf(line, "%d", &num); // Scan number into int
+
+		strcat(output, "1");
+		strcat(output, inttobin(num, 5)); // Append immediate val to output
+	}
+
+	return bintoint(output);
 }
 
 int getTrap(char line[]) {
+	/*
+		TRAP x22
+		1111 0000 trapvect8(8)
+	*/
 
+	char* output = (char*) malloc(16 * sizeof(char));
+	strcat(output, "11110000");
+
+	rc(line, 4); // Remove "TRAP"
+	rc(line, 1); // Remove "x"
+	
+	int num = 0;
+	sscanf(line, "%d", &num); // Scan number into int
+	strcat(output, inttobin(num, 8)); // Append trap vector to output
+
+	return bintoint(output);
 }
 
 int getNot(char line[]) {
-
+	
 }
 
 int getLd(char line[], int[], int) {
@@ -455,59 +525,83 @@ char isspace(unsigned char c) {
 }
 
 // Transform string to lowercase
-void strlwr(char *s) {
-    int i=0;
-    while(s[i]!='\0')
-    {
-        if(s[i]>='A' && s[i]<='Z'){
-            s[i]=s[i]+32;
-        }
-        ++i;
-    }
-}
-
-// Determine if a string is equal to another based on length of the second string
-int strequals(char *s1, char *s2) {
-	return strncmp(s1, s2, strlen(s2)) == 0;
-}
-
-// Remove chunk of text from string and trim it
-void removeChunk(char *line, int num) {
-	line += num;
-	trim(line);
-}
-
-
-char *inttobin(int num, int length) {
-	
-}
-
-// Convert ascii-represented integer character to 4 digit binary string
-char *chartobin(char num, int length) {
-	switch (num) {
-		case '0':
-			return "0000";
-		case '1':
-			return "0001";
-		case '2':
-			return "0010";
-		case '3':
-			return "0011";
-		case '4':
-			return "0100";
-		case '5':
-			return "0101";
-		case '6':
-			return "0110";
-		case '7':
-			return "0111";
-		case '8':
-			return "1000";
-		case '9':
-			return "1001";
+void strlower(char *s) {
+	int i = 0;
+	while (s[i]!='\0') {
+		if (s[i] >= 'A' && s[i] <= 'Z') {
+			s[i] = s[i] + 32;
+		}
+		++i;
 	}
 }
 
-int bintoint(const char *s) {
-  return (int) strtol(s, NULL, 2);
+// Determine if a string is equal to another based on length of the second string
+int strequals(const char *s1, const char *s2) {
+	return strncmp(s1, s2, strlen(s2)) == 0;
+}
+
+// 'Remove Chunk' of text from string and trim it
+void rc(char *line, int num) {
+	memmove(line, line + num, strlen(line));
+	trim(line);
+}
+
+// Convert integer to binary string with defined length
+char* inttobin(int num, int length) {
+	char* output = (char*) malloc(length * sizeof(char));
+	char one[] = "1";
+	char zero[] = "0";
+
+	for (int i = length - 1; i >= 0; i--) {
+
+		if (num & 1) {
+			output[i] = '1';
+		} else {
+			output[i] = '0';
+		}
+		num = num >> 1; 
+	}
+
+	return output;
+}
+
+// Convert ascii-represented integer character to 4 digit binary string
+// This is definately a terrible implementation for this
+const char* chartobin(char num, int length) {
+	switch (num) {
+		case '0':
+			return inttobin(0, length);
+		case '1':
+			return inttobin(1, length);
+		case '2':
+			return inttobin(2, length);
+		case '3':
+			return inttobin(3, length);
+		case '4':
+			return inttobin(4, length);
+		case '5':
+			return inttobin(5, length);
+		case '6':
+			return inttobin(6, length);
+		case '7':
+			return inttobin(7, length);
+		case '8':
+			return inttobin(8, length);
+		case '9':
+			return inttobin(9, length);
+	}
+}
+
+// Convert binary string to integer
+int bintoint(char *binstr) {
+  int output = 0;
+
+	for (int i = 0; i < strlen(binstr); i++) {
+		output = output << 1;
+		if (binstr[i] == '1') {
+			output += 1;
+		}
+	}
+
+	return output;
 }
