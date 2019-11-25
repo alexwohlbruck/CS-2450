@@ -3,7 +3,7 @@
 
 ;This is a comment
 
-.orig x3000
+.orig  x3000
 	ADD R1, R2, R3
 	add R0, R3, #10
 	

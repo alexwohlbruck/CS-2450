@@ -34,6 +34,7 @@ int chartoint(char);
 char* inttobin(int, int);
 int bintoint(char*);
 int strtoint(char*);
+int hextoint(char*);
 
 
 void assemble(char filename[]) {
@@ -45,9 +46,10 @@ void assemble(char filename[]) {
 		int labels[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 		
 		int lc = findOrigin(infile);
-		
+
 		if (lc > -1) {
 			//Read in label values
+
 			if (!firstPass(infile, labels, lc)) {
 				//Show the labels.
 				// printLabels(labels);
@@ -70,7 +72,7 @@ void assemble(char filename[]) {
 /*** Line scans ***/
 
 int findOrigin(FILE *infile) {
-	//Each trip through the while loop will read the next line of infile
+	// Each trip through the while loop will read the next line of infile
 	//into the line char array as a null terminated string.
 	char line[LINE_SIZE];
 	
@@ -102,43 +104,38 @@ int findOrigin(FILE *infile) {
 		trim(line);
 		strlower(line);
 
-		// Get first 5 chars of line
-		char findOrigin[6];
-		strncpy(findOrigin, line, 5);
-		findOrigin[5] = '\0';
-
 		int lineIsEmpty = strlen(line) == 0;
 		int lineIsComment = line[0] == ';';
-		int lineIsOrigin = strcmp(findOrigin, ".orig") == 0;
+		int lineIsOrigin = strequals(line, ".orig");
 
 		if (!lineIsEmpty && !lineIsComment && lineIsOrigin) {
 			// Found ".orig", search the rest of line
-			char *address = line;
-			address += 5; // Remove first 5 chars (.orig) from line
-			trim(address);
+			rc(line, 5); // Remove ".orig"
 
-			int output = 0;
+			int origin = 0;
 
-			if (address[0] == 'x') {
+			if (line[0] == 'x') {
 				// Address is a hexadecimal value
-				address += 1; // Remove x from address
+				rc(line, 1); // Remove "x"
 
-				sscanf(address, "%x", &output);
+				sscanf(line, "%x", &origin);
 			}
 			else {
 				// Address is a decimal value
-				sscanf(address, "%d", &output);
+				sscanf(line, "%d", &origin);
 			}
 
-			if (output > 0xFFFF) {
+			if (origin > 0xFFFF) {
 				printf("ERROR 2: Bad origin address. Address too big for 16 bits.\n");
 				return -1;
 			}
 
-			return output;
+			// Set the line to empty string for the next pass.
+			printf("%4X\n", origin);
+			return origin;
 		}
 		
-		//Set the line to empty string for the next pass.
+		// Set the line to empty string for the next pass.
 		line[0] = 0;
 	}
 	
@@ -202,7 +199,6 @@ int firstPass(FILE *infile, int labels[], int lc) {
 		int lineIsTrap = strequals(line, "trap");
 		int lineIsInstruction = lineIsAdd || lineIsAnd || lineIsNot || lineIsLd || lineIsLdr || lineIsSt || lineIsStr || lineIsBr || lineIsTrap;
 
-
 		// If the line is a comment, a blank line or the .orig directive, don't do anything.
 		if (!lineIsEmpty && !lineIsComment && !lineIsOrigin) {
 			
@@ -238,17 +234,16 @@ int firstPass(FILE *infile, int labels[], int lc) {
 				done = 1;
 				return 0;
 			}
-			
 		}
-
-		//Set the line to empty string for the next pass.
-		line[0] = 0;
 	}
+
+	// Set the line to empty string for the next pass.
+	line[0] = 0;
 
 	// If the end of file is reached before .end is found print the error and return -1.
 	if (!done) {
 		printf("ERROR 4: Missing end directive.\n");
-		return -1;
+		return 0;
 	}
 }
 
@@ -278,34 +273,62 @@ int secondPass(FILE *infile, int labels[], int lc) {
 		lineCount++;
 		
 		fscanf(infile, "%c", &c);  //Get rid of extra newline.
-		
 		//Read a line.
 
-		trim(line);
-		strlower(line);
+		char linecpy[LINE_SIZE];
+		strcpy(linecpy, line);
 
-		int lineIsEmpty = strlen(line) == 0;
-		int lineIsComment = line[0] == ';';
-		int lineIsOrigin = strequals(line, ".orig");
-		int lineIsEnd = strequals(line, ".end");
-		int lineIsLabel = line[0] == 'l' && line[1] >= '0' && line[1] <= '9' && strlen(line) == 2;
-		int lineIsFill = strstr(line, ".fill") != NULL;
+		trim(linecpy);
+		strlower(linecpy);
 
-		int lineIsAdd = strequals(line, "add");
-		int lineIsAnd = strequals(line, "and");
-		int lineIsNot = strequals(line, "not");
-		int lineIsLd = strequals(line, "ld");
-		int lineIsLdr = strequals(line, "ldr");
-		int lineIsSt = strequals(line, "st");
-		int lineIsStr = strequals(line, "str");
-		int lineIsBr = strequals(line, "br");
-		int lineIsTrap = strequals(line, "trap");
+		int lineIsEmpty = strlen(linecpy) == 0;
+		int lineIsComment = linecpy[0] == ';';
+		int lineIsOrigin = strequals(linecpy, ".orig");
+		int lineIsEnd = strequals(linecpy, ".end");
+		int lineIsLabel = linecpy[0] == 'l' && linecpy[1] >= '0' && linecpy[1] <= '9' && strlen(linecpy) == 2;
+		int lineIsFill = strstr(linecpy, ".fill") != NULL;
+
+		int lineIsAdd = strequals(linecpy, "add");
+		int lineIsAnd = strequals(linecpy, "and");
+		int lineIsNot = strequals(linecpy, "not");
+		int lineIsLd = strequals(linecpy, "ld") && linecpy[2] != 'r';
+		int lineIsLdr = strequals(linecpy, "ldr");
+		int lineIsSt = strequals(linecpy, "st") && linecpy[2] != 'r';
+		int lineIsStr = strequals(linecpy, "str");
+		int lineIsBr = strequals(linecpy, "br");
+		int lineIsTrap = strequals(linecpy, "trap");
 		int lineIsInstruction = lineIsAdd || lineIsAnd || lineIsNot || lineIsLd || lineIsLdr || lineIsSt || lineIsStr || lineIsBr || lineIsTrap;
 
-		// Logic here
 
-		if (!lineIsEmpty && !lineIsComment && !lineIsOrigin && !lineIsLabel) {
-			// Ignore line
+		// printf("%d %d %d %d %d %d %d %d %s\n", lc, lineIsEmpty, lineIsComment, lineIsOrigin, lineIsEnd, lineIsLabel, lineIsFill, lineIsInstruction, line);
+
+		if (lineIsInstruction) {
+			lc++;
+
+			int instruction = 0;
+			
+			// Call appropriate method to deal with the instruction
+			if (lineIsAdd) {
+				instruction = getAdd(linecpy);
+			} else if (lineIsAnd) {
+				instruction = getAnd(linecpy);
+			} else if (lineIsNot) {
+				instruction = getNot(linecpy);
+			} else if (lineIsLd) {
+				instruction = getLd(linecpy, labels, lc);
+			} else if (lineIsLdr) {
+				instruction = getLdr(linecpy);
+			} else if (lineIsSt) {
+				instruction = getSt(linecpy, labels, lc);
+			} else if (lineIsStr) {
+				instruction = getStr(linecpy);
+			} else if (lineIsBr) {
+				instruction = getBr(linecpy, labels, lc);
+			} else if (lineIsTrap) {
+				instruction = getTrap(linecpy);
+			}
+			
+			printf("%04X\n", instruction);
 		}
 		else if (lineIsFill) {
 			lc++;
@@ -314,31 +337,7 @@ int secondPass(FILE *infile, int labels[], int lc) {
 		else if (lineIsEnd) {
 			return 0;
 		}
-		
-		if (lineIsInstruction) {
-			lc++;
-			
-			// Call appropriate method to deal with the instruction
-			if (lineIsAdd) {
-				getAdd(line);
-			} else if (lineIsAnd) {
-				getAnd(line);
-			} else if (lineIsNot) {
-				getNot(line);
-			} else if (lineIsLd) {
-				getLd(line, labels, lc);
-			} else if (lineIsLdr) {
-				getLdr(line);
-			} else if (lineIsSt) {
-				getSt(line, labels, lc);
-			} else if (lineIsStr) {
-				getStr(line);
-			} else if (lineIsBr) {
-				getBr(line, labels, lc);
-			} else if (lineIsTrap) {
-				getTrap(line);
-			}
-		}
+
 	}
 }
 
@@ -451,7 +450,7 @@ int getTrap(char line[]) {
 	rc(line, 4); // Remove "TRAP"
 	rc(line, 1); // Remove "x"
 	
-	int num = strtoint(line);
+	int num = hextoint(line);
 	strcat(output, inttobin(num, 8)); // Append trap vector to output
 
 	return bintoint(output);
@@ -498,7 +497,7 @@ int getLd(char line[], int labels[], int lc) {
 	rc(line, 1); // Remove ","
 
 	int labelAddress = labels[chartoint(line[1])];
-	int PCoffset = lc - labelAddress;
+	int PCoffset = labelAddress - lc;
 	
 	strcat(output, inttobin(PCoffset, 9));
 
@@ -551,7 +550,7 @@ int getSt(char line[], int labels[], int lc) {
 	rc(line, 1); // Remove ","
 
 	int labelAddress = labels[chartoint(line[1])];
-	int PCoffset = lc - labelAddress;
+	int PCoffset = labelAddress - lc;
 	
 	strcat(output, inttobin(PCoffset, 9));
 
@@ -604,7 +603,7 @@ int getBr(char line[], int labels[], int lc) {
 		rc(line, 2); // Remove "BR"
 	}
 	else if (line[2] == 'n') {
-		if (isspace(line['3'])) {
+		if (isspace(line[3])) {
 			nzp = 0b100; // n
 			rc(line, 3); // Remove "BRn"
 		}
@@ -640,12 +639,8 @@ int getBr(char line[], int labels[], int lc) {
 
 	strcat(output, inttobin(nzp, 3));
 
-	printf("%d\n", chartoint(line[1]));
-
 	int labelAddress = labels[chartoint(line[1])];
-	int PCoffset = lc - labelAddress;
-
-	printf("%d %d\n", labelAddress, lc);
+	int PCoffset = labelAddress - lc;
 	
 	strcat(output, inttobin(PCoffset, 9));
 
@@ -771,5 +766,12 @@ int bintoint(char *binstr) {
 int strtoint(char *str) {
 	int num = 0;
 	sscanf(str, "%d", &num); // Scan number into int
+	return num;
+}
+
+// Convert string hex number to int
+int hextoint(char *str) {
+	int num = 0;
+	sscanf(str, "%x", &num);
 	return num;
 }
