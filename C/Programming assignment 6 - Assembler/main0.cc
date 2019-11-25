@@ -17,12 +17,8 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		char filename[128] = "test2.asm";		
+		char filename[128] = "testAdd.asm";		
 		assemble(filename);
-		printf("----------------------------------------------------------------\n");
-		printf("labels = {12292, 12302, 12311, 12312, 12313, -1, -1, -1, -1, -1}\n");
-		printf("If your code is correct, the line above the dashed line\n");
-		printf("should EXACTLY match the line below the dashed line.\n");
 	}
 }
 
