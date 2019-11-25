@@ -12,6 +12,7 @@ int firstPass(FILE*, int[], int);
 void printLabels(int[]);
 
 // For part 2
+int secondPass(FILE*, int[], int);
 int getAdd(char[]);
 int getAnd(char[]);
 int getTrap(char[]);
@@ -21,8 +22,6 @@ int getLdr(char[]);
 int getSt(char[], int[], int);
 int getStr(char[]);
 int getBr(char[], int[], int);
-int getIt(int, char[]);
-int secondPass(FILE*, int[], int);
 
 // Helper functions
 void trim(char*);
@@ -30,9 +29,12 @@ char isspace(unsigned char);
 void strlower(char*);
 int strequals(const char*, const char*);
 void rc(char*, int);
-const char* chartobin(char, int);
+char* chartobin(char, int);
+int chartoint(char);
 char* inttobin(int, int);
 int bintoint(char*);
+int strtoint(char*);
+
 
 void assemble(char filename[]) {
 	//Open the file for reading
@@ -63,6 +65,9 @@ void assemble(char filename[]) {
 		printf("Can't open input file.\n");		
 	}
 }
+
+
+/*** Line scans ***/
 
 int findOrigin(FILE *infile) {
 	//Each trip through the while loop will read the next line of infile
@@ -337,6 +342,9 @@ int secondPass(FILE *infile, int labels[], int lc) {
 	}
 }
 
+
+/*** Instructions logic ***/
+
 int getAdd(char line[]) {
 	/* 
 		ADD R1, R2, R3
@@ -375,8 +383,7 @@ int getAdd(char line[]) {
 
 		rc(line, 1); // Remove "#"
 		
-		int num = 0;
-		sscanf(line, "%d", &num); // Scan number into int
+		int num = strtoint(line);
 
 		strcat(output, "1");
 		strcat(output, inttobin(num, 5)); // Append immediate val to output
@@ -423,8 +430,7 @@ int getAnd(char line[]) {
 
 		rc(line, 1); // Remove "#"
 		
-		int num = 0;
-		sscanf(line, "%d", &num); // Scan number into int
+		int num = strtoint(line);
 
 		strcat(output, "1");
 		strcat(output, inttobin(num, 5)); // Append immediate val to output
@@ -445,41 +451,209 @@ int getTrap(char line[]) {
 	rc(line, 4); // Remove "TRAP"
 	rc(line, 1); // Remove "x"
 	
-	int num = 0;
-	sscanf(line, "%d", &num); // Scan number into int
+	int num = strtoint(line);
 	strcat(output, inttobin(num, 8)); // Append trap vector to output
 
 	return bintoint(output);
 }
 
 int getNot(char line[]) {
+	/*
+		NOT R3, R4
+		1001 DR(3) SR(3) 111111
+	*/
+	char* output = (char*) malloc(16 * sizeof(char));
+	strcat(output, "1001");
+
+	rc(line, 3); // Remove "NOT"
 	
+	char DR = line[1];
+	strcat(output, chartobin(DR, 3)); // Append DR to output
+
+	rc(line, 2); // Remove DR
+	rc(line, 1); // Remove ","
+	
+	char SR = line[1];
+	strcat(output, chartobin(SR, 3));
+
+	strcat(output, "111111");
+
+	return bintoint(output);
 }
 
-int getLd(char line[], int[], int) {
+int getLd(char line[], int labels[], int lc) {
+	/* 
+		LD R1, L2
+		0010 DR(3) PCoffset9(9)
+	*/
+	char* output = (char*) malloc(16 * sizeof(char));
+	strcat(output, "0010");
 
+	rc(line, 2); // Remove "LD"
+
+	char DR = line[1];
+	strcat(output, chartobin(DR, 3));
+
+	rc(line, 2); // Remove DR
+	rc(line, 1); // Remove ","
+
+	int labelAddress = labels[chartoint(line[1])];
+	int PCoffset = lc - labelAddress;
+	
+	strcat(output, inttobin(PCoffset, 9));
+
+	return bintoint(output);
 }
 
 int getLdr(char line[]) {
+	/* 
+		LDR R1, R2, #-5
+		0110 DR(3) BaseR(3) offset6(6)
+	*/
+	char* output = (char*) malloc(16 * sizeof(char));
+	strcat(output, "0110");
 
+	rc(line, 3); // Remove "LDR"
+
+	char DR = line[1];
+	strcat(output, chartobin(DR, 3));
+
+	rc(line, 2); // Remove DR
+	rc(line, 1); // Remove ","
+
+	char BaseR = line[1];
+	strcat(output, chartobin(BaseR, 3));
+
+	rc(line, 2); // Remove BaseR
+	rc(line, 1); // Remove ","
+	rc(line, 1); // Remove "#"
+
+	int offset = strtoint(line);
+	strcat(output, inttobin(offset, 6));
+
+	return bintoint(output);
 }
 
-int getSt(char line[], int[], int) {
+int getSt(char line[], int labels[], int lc) {
+	/* 
+		ST R5, L2
+		0011 SR(3) PCoffset9(9)
+	*/
+	char* output = (char*) malloc(16 * sizeof(char));
+	strcat(output, "0011");
 
+	rc(line, 2); // Remove "ST"
+
+	char SR = line[1];
+	strcat(output, chartobin(SR, 3));
+
+	rc(line, 2); // Remove SR
+	rc(line, 1); // Remove ","
+
+	int labelAddress = labels[chartoint(line[1])];
+	int PCoffset = lc - labelAddress;
+	
+	strcat(output, inttobin(PCoffset, 9));
+
+	return bintoint(output);
 }
 
 int getStr(char line[]) {
+	/* 
+		STR R6, R1, #-5
+		0111 SR(3) BaseR(3) offset6(6)
+	*/
+	char* output = (char*) malloc(16 * sizeof(char));
+	strcat(output, "0111");
 
+	rc(line, 3); // Remove "LDR"
+
+	char SR = line[1];
+	strcat(output, chartobin(SR, 3));
+
+	rc(line, 2); // Remove SR
+	rc(line, 1); // Remove ","
+
+	char BaseR = line[1];
+	strcat(output, chartobin(BaseR, 3));
+
+	rc(line, 2); // Remove BaseR
+	rc(line, 1); // Remove ","
+	rc(line, 1); // Remove "#"
+
+	int offset = strtoint(line);
+	strcat(output, inttobin(offset, 6));
+
+	return bintoint(output);
 }
 
-int getBr(char line[], int[], int) {
+int getBr(char line[], int labels[], int lc) {
+	/* 
+		BRnzp L1
+		0000 n z p PCoffset9(9)
+	*/
+	char* output = (char*) malloc(16 * sizeof(char));
+	strcat(output, "0000");
 
+	int nzp = 0;
+
+	// Logic to determine NZP structure
+
+	if (isspace(line[2])) {
+		nzp = 0b111; // blank
+		rc(line, 2); // Remove "BR"
+	}
+	else if (line[2] == 'n') {
+		if (isspace(line['3'])) {
+			nzp = 0b100; // n
+			rc(line, 3); // Remove "BRn"
+		}
+		else if (line[3] == 'z') {
+			if (isspace(line[4])) {
+				nzp = 0b110; // nz
+				rc(line, 4); // Remove "BRnz"
+			}
+			else if (line[4] == 'p') {
+				nzp = 0b111; // nzp
+				rc(line, 5); // Remove "BRnzp"
+			}
+		}
+		else if (line[3] == 'p' && isspace(line[4])) {
+			nzp = 0b101; // np
+			rc(line, 4); // Remove "BRnp"
+		}
+	}
+	else if (line[2] == 'z') {
+		if (isspace(line[3])) {
+			nzp = 0b010; // z
+			rc(line, 3); // Remove "BRz"
+		}
+		else if (line[3] == 'p' && isspace(line[4])) {
+			nzp = 0b011; // zp
+			rc(line, 4); // Remove "BRzp"
+		}
+	}
+	else if (line[2] == 'p' && isspace(line[3])) {
+		nzp = 0b001; // p
+		rc(line, 3); // Remove "BRp"
+	}
+
+	strcat(output, inttobin(nzp, 3));
+
+	printf("%d\n", chartoint(line[1]));
+
+	int labelAddress = labels[chartoint(line[1])];
+	int PCoffset = lc - labelAddress;
+
+	printf("%d %d\n", labelAddress, lc);
+	
+	strcat(output, inttobin(PCoffset, 9));
+
+	return bintoint(output);
 }
 
-/* int getIt(int, char[]) {
 
-} */
-
+/*** Helper functions ***/
 
 void printLabels(int labels[]) {
 	printf("labels = {");
@@ -546,8 +720,16 @@ void rc(char *line, int num) {
 	trim(line);
 }
 
+/*** Conversions ***/
+
+// Convert a character '0' - '9' to integer
+int chartoint(char num) {
+	return (int) num - '0'; 
+}
+
 // Convert integer to binary string with defined length
 char* inttobin(int num, int length) {
+
 	char* output = (char*) malloc(length * sizeof(char));
 	char one[] = "1";
 	char zero[] = "0";
@@ -566,30 +748,9 @@ char* inttobin(int num, int length) {
 }
 
 // Convert ascii-represented integer character to 4 digit binary string
-// This is definately a terrible implementation for this
-const char* chartobin(char num, int length) {
-	switch (num) {
-		case '0':
-			return inttobin(0, length);
-		case '1':
-			return inttobin(1, length);
-		case '2':
-			return inttobin(2, length);
-		case '3':
-			return inttobin(3, length);
-		case '4':
-			return inttobin(4, length);
-		case '5':
-			return inttobin(5, length);
-		case '6':
-			return inttobin(6, length);
-		case '7':
-			return inttobin(7, length);
-		case '8':
-			return inttobin(8, length);
-		case '9':
-			return inttobin(9, length);
-	}
+char* chartobin(char num, int length) {
+	int intnum = chartoint(num);
+	return inttobin(intnum, length);
 }
 
 // Convert binary string to integer
@@ -604,4 +765,11 @@ int bintoint(char *binstr) {
 	}
 
 	return output;
+}
+
+// Convert string number to integer
+int strtoint(char *str) {
+	int num = 0;
+	sscanf(str, "%d", &num); // Scan number into int
+	return num;
 }
