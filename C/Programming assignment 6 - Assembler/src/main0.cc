@@ -17,7 +17,7 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		char filename[128] = "testAdd.asm";		
+		char filename[128] = "../inputs/testTrap.asm";		
 		assemble(filename);
 	}
 }

@@ -335,6 +335,7 @@ int secondPass(FILE *infile, int labels[], int lc) {
 			printf("0000\n");
 		}
 		else if (lineIsEnd) {
+			printf("F025\n");
 			return 0;
 		}
 
